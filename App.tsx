@@ -375,7 +375,7 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
             className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-2xl"
             style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
           >
-            <div className="max-w-6xl mx-auto grid grid-cols-4 h-[88px] px-2 gap-1">
+            <div className="max-w-6xl mx-auto grid grid-cols-5 h-[88px] px-2 gap-1">
               <button onClick={() => navigate('/admin-home')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname === '/admin-home')}`} type="button">
                 <LayoutDashboard size={20} />
                 <span className="text-[10px] font-bold uppercase tracking-tight">Bảng tin</span>
@@ -383,6 +383,10 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
               <button onClick={() => navigate('/classes')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(['/classes', '/drl/classes', '/gpa/classes'].includes(location.pathname))}`} type="button">
                 <Users size={20} />
                 <span className="text-[10px] font-bold uppercase tracking-tight">Sinh viên</span>
+              </button>
+              <button onClick={() => navigate('/dashboard')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname === '/dashboard' || location.pathname === '/activities' || location.pathname === '/scan' || location.pathname === '/reports' || location.pathname.startsWith('/attendance/'))}`} type="button">
+                <BookOpen size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tight">Điểm danh</span>
               </button>
               <button onClick={() => navigate('/drl')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname.startsWith('/drl'))}`} type="button">
                 <ShieldCheck size={20} />
@@ -438,7 +442,7 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
           className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-2xl"
           style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
         >
-          <div className="max-w-6xl mx-auto grid grid-cols-4 h-[88px] px-2 gap-1">
+          <div className="max-w-6xl mx-auto grid grid-cols-5 h-[88px] px-2 gap-1">
             <button onClick={() => navigate('/admin-home')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname === '/admin-home')}`} type="button">
               <LayoutDashboard size={20} />
               <span className="text-[10px] font-bold uppercase tracking-tight">Bảng tin</span>
@@ -446,6 +450,10 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
             <button onClick={() => navigate('/classes')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(['/classes', '/drl/classes', '/gpa/classes'].includes(location.pathname))}`} type="button">
               <Users size={20} />
               <span className="text-[10px] font-bold uppercase tracking-tight">Sinh viên</span>
+            </button>
+            <button onClick={() => navigate('/dashboard')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname === '/dashboard' || location.pathname === '/activities' || location.pathname === '/scan' || location.pathname === '/reports' || location.pathname.startsWith('/attendance/'))}`} type="button">
+              <BookOpen size={20} />
+              <span className="text-[10px] font-bold uppercase tracking-tight">Điểm danh</span>
             </button>
             <button onClick={() => navigate('/drl')} className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-[0.98] ${quickNavTextClass(location.pathname.startsWith('/drl'))}`} type="button">
               <ShieldCheck size={20} />

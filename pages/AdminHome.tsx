@@ -131,7 +131,7 @@ const AdminHome: React.FC = () => {
       title: 'Điểm danh',
       desc: 'Hoạt động chuyên cần',
       icon: ClipboardCheck,
-      onClick: () => navigate('/activities')
+      onClick: () => navigate('/dashboard')
     },
     {
       title: 'Điểm rèn luyện',
