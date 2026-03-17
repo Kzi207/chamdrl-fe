@@ -7,7 +7,7 @@
     "start": "vite",
     "dev:full": "concurrently \"node -r ../be/ts-register.js ../be/server-mysql.ts\" \"vite\"",
     "server": "node -r ../be/ts-register.js ../be/server-mysql.ts",
-    "build": "node -r ../be/ts-register.js ../be/database/auto-migrate.ts && vite build",
+    "build": "vite build",
     "build:db": "node -r ../be/ts-register.js ../be/database/auto-migrate.ts",
     "migrate": "node -r ../be/ts-register.js ../be/database/migrate.ts",
     "migrate:safe": "node -r ../be/ts-register.js ../be/database/migrate-safe.ts",
