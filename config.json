@@ -1,0 +1,22 @@
+{
+  "websiteName": "Hệ thống Khoa Kỹ thuật Cơ khí",
+  "websiteLogo": "https://file.kzii.site/logo%202.png",
+  "universityName": {
+    "line1": "Hệ thống điểm danh",
+    "line2": ""
+  },
+  "departmentName": "Khánh Duy",
+  "footerText": "© 2026 Khánh Duy - Khoa Kỹ thuật Cơ khí - Đại học Kỹ thuật Công nghệ Cần Thơ",
+  "contacts": {
+    "zalo": "https://zalo.me/0939042183",
+    "facebook": "https://facebook.com/kzi207",
+    "gmail": "toi05022020@gmail.com",
+    "phone": "0939042183"
+  },
+  "maintenance": {
+    "enabled": false,
+    "allowAccess": false
+  },
+  "apiUrl": "https://database.kzii.site",
+  "lockApiUrl": true
+}

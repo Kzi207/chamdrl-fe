@@ -1,0 +1,22 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Don't rewrite files or directories
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Don't rewrite API routes
+  RewriteCond %{REQUEST_URI} !^/api
+  RewriteCond %{REQUEST_URI} !^/admin-api
+  
+  # Rewrite everything else to index.html to support react-router
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Enable CORS
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization, x-api-key"
+</IfModule>

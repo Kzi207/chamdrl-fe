@@ -1,0 +1,17 @@
+# Browsers that we support
+# Covers 95%+ of global browser usage
+
+> 0.5%
+last 2 versions
+Firefox ESR
+not dead
+not IE 11
+not op_mini all
+
+# Specific browsers for better compatibility
+Chrome >= 80
+Firefox >= 78
+Safari >= 13
+Edge >= 80
+iOS >= 13
+ChromeAndroid >= 80
