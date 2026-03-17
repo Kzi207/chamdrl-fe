@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Bell, BookOpen, Calculator, ClipboardList, LogOut, UserCircle2, GraduationCap, User, CalendarDays } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/storage';
 import StudentBottomNav from '../components/StudentBottomNav';
@@ -9,17 +9,29 @@ const StudentHome: React.FC = () => {
   const currentUser = getCurrentUser();
 
   if (!currentUser) {
-    navigate('/login', { replace: true });
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   if (currentUser.role !== 'student') {
-    navigate('/admin-home', { replace: true });
-    return null;
+    return <Navigate to="/admin-home" replace />;
   }
 
   const studentName = currentUser.name || 'Sinh viên';
   const studentId = currentUser.username || 'N/A';
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+  let studentAvatar = '';
+  try {
+    const metaRaw = localStorage.getItem(`student_profile_meta_${studentId}`);
+    if (metaRaw) {
+      const meta = JSON.parse(metaRaw);
+      studentAvatar = meta?.avatar || '';
+    }
+  } catch {
+    studentAvatar = '';
+  }
 
   const quickActions = [
     {
@@ -65,8 +77,12 @@ const StudentHome: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-14 h-14 rounded-full border-2 border-white/30 bg-white/20 flex items-center justify-center">
-                  <UserCircle2 size={34} />
+                <div className="w-14 h-14 rounded-full border-2 border-white/30 bg-white/20 flex items-center justify-center overflow-hidden">
+                  {studentAvatar ? (
+                    <img src={studentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircle2 size={34} />
+                  )}
                 </div>
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-400 border-2 border-blue-700 rounded-full"></span>
               </div>
@@ -75,9 +91,14 @@ const StudentHome: React.FC = () => {
                 <p className="text-blue-100 text-xs font-medium">MSSV: {studentId}</p>
               </div>
             </div>
-            <button className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors" onClick={() => navigate('/student-activities')} type="button" title="Thông báo">
-              <Bell className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors" onClick={() => navigate('/student-activities')} type="button" title="Thông báo">
+                <Bell className="h-6 w-6" />
+              </button>
+              <button className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors" onClick={handleLogout} type="button" title="Đăng xuất">
+                <LogOut className="h-6 w-6" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -149,8 +170,12 @@ const StudentHome: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full border-2 border-white/30 bg-white/20 flex items-center justify-center">
-                  <UserCircle2 size={38} />
+                <div className="w-16 h-16 rounded-full border-2 border-white/30 bg-white/20 flex items-center justify-center overflow-hidden">
+                  {studentAvatar ? (
+                    <img src={studentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircle2 size={38} />
+                  )}
                 </div>
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 border-2 border-blue-700 rounded-full"></span>
               </div>
@@ -164,10 +189,7 @@ const StudentHome: React.FC = () => {
                 <Bell className="h-5 w-5" />
               </button>
               <button
-                onClick={() => {
-                  logout();
-                  navigate('/login', { replace: true });
-                }}
+                onClick={handleLogout}
                 className="inline-flex items-center gap-2 bg-white text-blue-700 font-semibold px-4 py-2 rounded-xl hover:bg-blue-50 transition-colors"
                 type="button"
               >

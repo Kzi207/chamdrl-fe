@@ -7,6 +7,10 @@
     {
       "source": "/api-proxy/:path*",
       "destination": "https://database.kzii.site/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

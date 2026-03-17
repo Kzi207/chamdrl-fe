@@ -96,7 +96,7 @@ const normalizeProofs = (raw: any): ProofMap => {
     return normalized;
 };
 
-const getTotalProofCount = (proofMap: ProofMap): number => Object.values(proofMap).reduce((sum, urls) => sum + urls.length, 0);
+const getProofCountByCriteria = (proofMap: ProofMap, criteriaId: string): number => (proofMap[criteriaId] || []).length;
 
 const mergeProofMaps = (baseMap: ProofMap, extraMap: ProofMap): ProofMap => {
     const merged: ProofMap = { ...baseMap };
@@ -360,10 +360,8 @@ const DRLForm: React.FC = () => {
         let bestFinalScore = totals.self;
         if (totals.class > 0 || Object.keys(scores.class).length > 0) bestFinalScore = totals.class;
 
-        // Luon gop voi proofs da co trong scoreData de tranh ghi de rong khi auto-save/race condition.
-        const existingProofs = normalizeProofs((scoreData?.details as any)?.proofs);
-        const currentProofs = proofsOverride || proofs;
-        const persistedProofs = mergeProofMaps(existingProofs, currentProofs);
+        // Ghi theo state hien tai de ton trong thao tac xoa minh chung.
+        const persistedProofs = normalizeProofs(proofsOverride || proofs);
 
         const payload: DRLScore = {
             id: scoreData?.id || `${student.id}_${currentPeriodId}`,
@@ -458,9 +456,9 @@ const DRLForm: React.FC = () => {
     const handleUploadClick = (criteriaId: string) => {
         if (isLocked) { alert("Đã hết hạn nộp minh chứng."); return; }
 
-        const proofCount = getTotalProofCount(proofs);
+        const proofCount = getProofCountByCriteria(proofs, criteriaId);
         if (proofCount >= MAX_PROOF_IMAGES) {
-            alert(`Chỉ được tải tối đa ${MAX_PROOF_IMAGES} ảnh minh chứng.`);
+            alert(`Mỗi mục chỉ được tải tối đa ${MAX_PROOF_IMAGES} ảnh minh chứng.`);
             return;
         }
 
@@ -473,18 +471,18 @@ const DRLForm: React.FC = () => {
         const criteriaId = targetCriteriaRef.current;
         if (files.length === 0 || !criteriaId || !student) return;
 
-        const totalProofCount = getTotalProofCount(proofs);
-        const remaining = MAX_PROOF_IMAGES - totalProofCount;
+        const proofCountInCriteria = getProofCountByCriteria(proofs, criteriaId);
+        const remaining = MAX_PROOF_IMAGES - proofCountInCriteria;
 
         if (remaining <= 0) {
-            alert(`Chỉ được tải tối đa ${MAX_PROOF_IMAGES} ảnh minh chứng.`);
+            alert(`Mục ${criteriaId} đã đủ ${MAX_PROOF_IMAGES} ảnh minh chứng.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
         const selectedFiles = files.slice(0, remaining);
         if (files.length > remaining) {
-            alert(`Bạn chỉ có thể tải thêm ${remaining} ảnh (tối đa ${MAX_PROOF_IMAGES} ảnh).`);
+            alert(`Bạn chỉ có thể tải thêm ${remaining} ảnh ở mục ${criteriaId} (tối đa ${MAX_PROOF_IMAGES} ảnh/mục).`);
         }
 
         setUploadingId(criteriaId);
@@ -531,6 +529,7 @@ const DRLForm: React.FC = () => {
 
     const handleRemoveProof = useCallback(async (criteriaId: string) => {
         if (isLocked || !window.confirm("Bạn muốn xóa minh chứng này?")) return;
+        const prevProofs = { ...proofs };
         const newProofs = { ...proofs };
         delete newProofs[criteriaId];
 
@@ -540,8 +539,11 @@ const DRLForm: React.FC = () => {
             if (student) await deleteProofImage(student.id, criteriaId);
             await saveToDatabase(scoreData?.status || 'draft', newProofs);
             setAutoSaveStatus('saved');
+            alert('Đã xóa minh chứng của mục này.');
         } catch (e) {
+            setProofs(prevProofs);
             setAutoSaveStatus('error');
+            alert("Xóa minh chứng thất bại: " + ((e as Error).message || 'Lỗi không xác định'));
             console.error(e);
         }
     }, [isLocked, student, proofs, scoreData?.status]);
@@ -721,9 +723,19 @@ const DRLForm: React.FC = () => {
                         >
                             <Eye size={13} /> Xem ảnh ({proofUrls.length})
                         </button>
+                        {canModifyProof && proofUrls.length < MAX_PROOF_IMAGES && (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleUploadClick(c.id); }}
+                                className="p-1.5 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-all"
+                                title={`Tải thêm ảnh (${proofUrls.length}/${MAX_PROOF_IMAGES})`}
+                            >
+                                <Upload size={14} />
+                            </button>
+                        )}
                         {canModifyProof && (
                             <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleRemoveProof(c.id); }}
-                                className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
+                                className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-all" title="Xóa toàn bộ minh chứng của mục này"><Trash2 size={14} /></button>
                         )}
                     </>
                 ) : canModifyProof ? (

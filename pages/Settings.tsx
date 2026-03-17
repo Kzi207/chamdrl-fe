@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getUsers, createUser, updateUser, deleteUser, saveApiConfig, getApiUrl, checkSystemStatus, getCurrentUser, changePassword, getFirebaseConfig, saveFirebaseConfig, checkMixedContent, loadConfigFromServer, getStudents, updateStudent } from '../services/storage';
-import { Save, UserPlus, Trash2, Users, CheckCircle, XCircle, RefreshCw, Globe, AlertTriangle, Lock, Edit, X, Cloud, ArrowLeft, ArrowUp } from 'lucide-react';
+import { Save, UserPlus, Trash2, Users, CheckCircle, XCircle, RefreshCw, Globe, AlertTriangle, Lock, Edit, X, Cloud, ArrowLeft, ArrowUp, ArrowRight } from 'lucide-react';
 import { User } from '../types';
 import { initFirebase } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
@@ -42,9 +42,11 @@ const Settings: React.FC = () => {
     const [studentEmail, setStudentEmail] = useState('');
     const [studentPhone, setStudentPhone] = useState('');
     const [studentMajor, setStudentMajor] = useState('Công nghệ thông tin');
+    const [studentAvatar, setStudentAvatar] = useState('');
     const [studentClassName, setStudentClassName] = useState('Sinh viên');
     const [profileSaving, setProfileSaving] = useState(false);
     const [showChangePasswordPanel, setShowChangePasswordPanel] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setShowBackToTop(window.scrollY > 300);
@@ -99,10 +101,14 @@ const Settings: React.FC = () => {
                     const meta = JSON.parse(metaRaw);
                     setStudentPhone(meta.phone || '');
                     setStudentMajor(meta.major || 'Công nghệ thông tin');
+                    setStudentAvatar(meta.avatar || '');
+                } else {
+                    setStudentAvatar('');
                 }
             } catch (e) {
                 setStudentName(currentUser.name || '');
                 setStudentEmail(currentUser.email || '');
+                setStudentAvatar('');
             }
         };
 
@@ -286,14 +292,53 @@ const Settings: React.FC = () => {
               const meta = JSON.parse(metaRaw);
               setStudentPhone(meta.phone || '');
               setStudentMajor(meta.major || 'Công nghệ thông tin');
+              setStudentAvatar(meta.avatar || '');
           } else {
               setStudentPhone('');
               setStudentMajor('Công nghệ thông tin');
+              setStudentAvatar('');
           }
       } catch {
           setStudentName(currentUser.name || '');
           setStudentEmail(currentUser.email || '');
+          setStudentAvatar('');
       }
+  };
+
+  const handleAvatarPickClick = () => {
+      avatarInputRef.current?.click();
+  };
+
+  const handleAvatarSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+          alert('Vui lòng chọn tệp ảnh hợp lệ.');
+          e.target.value = '';
+          return;
+      }
+
+      const maxBytes = 2 * 1024 * 1024;
+      if (file.size > maxBytes) {
+          alert('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 2MB.');
+          e.target.value = '';
+          return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+          setStudentAvatar(String(reader.result || ''));
+      };
+      reader.onerror = () => {
+          alert('Không thể đọc tệp ảnh. Vui lòng thử lại.');
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+  };
+
+  const handleRemoveAvatar = () => {
+      setStudentAvatar('');
   };
 
   const handleSaveStudentProfile = async () => {
@@ -326,6 +371,7 @@ const Settings: React.FC = () => {
           localStorage.setItem(`student_profile_meta_${currentUser.username}`, JSON.stringify({
               phone: studentPhone.trim(),
               major: studentMajor,
+              avatar: studentAvatar,
           }));
 
           // Đồng bộ current_user trong localStorage để giao diện cập nhật ngay
@@ -369,10 +415,17 @@ const Settings: React.FC = () => {
                   <div className="flex p-6">
                       <div className="flex w-full flex-col gap-6 items-center">
                           <div className="flex gap-4 flex-col items-center relative">
-                              <div className="rounded-full border-4 border-blue-200 size-32 shadow-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center text-3xl font-bold">
-                                  {initials}
+                              <div className="rounded-full border-4 border-blue-200 size-32 shadow-lg overflow-hidden bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center text-3xl font-bold">
+                                  {studentAvatar ? (
+                                      <img src={studentAvatar} alt="Ảnh đại diện" className="h-full w-full object-cover" />
+                                  ) : initials}
                               </div>
-                              <button className="absolute right-0 bg-blue-600 text-white p-2 rounded-full shadow-md hover:scale-105 transition-transform bottom-2" type="button" title="Đổi ảnh">
+                              <button
+                                  className="absolute right-0 bg-blue-600 text-white p-2 rounded-full shadow-md hover:scale-105 transition-transform bottom-2"
+                                  type="button"
+                                  title="Đổi ảnh"
+                                  onClick={handleAvatarPickClick}
+                              >
                                   <Edit size={14} />
                               </button>
                               <div className="flex flex-col items-center justify-center">
@@ -380,9 +433,29 @@ const Settings: React.FC = () => {
                                   <p className="text-blue-700 font-medium text-sm text-center">{studentClassName}</p>
                               </div>
                           </div>
-                          <button className="flex min-w-[140px] items-center justify-center rounded-xl h-10 px-6 bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors" type="button">
+                          <input
+                              ref={avatarInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleAvatarSelected}
+                          />
+                          <button
+                              className="flex min-w-[140px] items-center justify-center rounded-xl h-10 px-6 bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors"
+                              type="button"
+                              onClick={handleAvatarPickClick}
+                          >
                               <span>Thay đổi ảnh</span>
                           </button>
+                          {studentAvatar && (
+                              <button
+                                  className="text-sm font-semibold text-red-600 hover:text-red-700"
+                                  type="button"
+                                  onClick={handleRemoveAvatar}
+                              >
+                                  Xóa ảnh hiện tại
+                              </button>
+                          )}
                       </div>
                   </div>
 

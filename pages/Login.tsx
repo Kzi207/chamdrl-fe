@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { login, getCurrentUser, loginWithGoogleAccount } from '../services/storage';
 import { Lock, User, AlertCircle, ArrowRight, GraduationCap } from 'lucide-react';
 import { signInWithGoogle, isFirebaseConfigured } from '../services/firebase';
@@ -29,7 +29,8 @@ const Login: React.FC = () => {
     // Nếu đã đăng nhập rồi thì redirect luôn
     const currentUser = getCurrentUser();
     if (currentUser) {
-        handlePostLogin(currentUser);
+        const redirectPath = currentUser.role === 'student' ? '/student-home' : '/admin-home';
+        return <Navigate to={redirectPath} replace />;
     }
 
     const handleLogin = async (e: React.FormEvent) => {
