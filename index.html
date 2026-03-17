@@ -7,26 +7,9 @@
     <!-- FAVICON: Tự động lấy từ config.json -->
     <link rel="icon" id="favicon" href="./logo_khoaktck_ctut.png"/>
     <script>
-      fetch('./config.json').then(r => r.json()).then(config => {
+      fetch('/config.json').then(r => r.json()).then(config => {
         document.getElementById('favicon').href = config.websiteLogo || './logo_khoaktck_ctut.png';
       }).catch(() => {});
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#0f172a',
-              secondary: '#334155',
-              accent: '#3b82f6',
-            },
-            fontFamily: {
-              sans: ['"Segoe UI"', 'Arial', 'sans-serif'],
-            }
-          }
-        }
-      }
     </script>
     <style>
       ::-webkit-scrollbar {

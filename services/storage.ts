@@ -68,7 +68,7 @@ export const loadConfigFromServer = async (forceRefresh = false): Promise<any> =
 
   configRequest = (async () => {
     try {
-      const response = await fetch('./config.json', { cache: 'no-cache' });
+      const response = await fetch('/config.json', { cache: 'no-cache' });
       if (response.ok) {
         const config = await response.json();
         cachedConfig = config;
@@ -102,15 +102,15 @@ export const getApiUrl = (): string => {
     return 'http://localhost:3004';
   }
 
-  // Production: LUÔN dùng https://database.kzii.site
+  // Production: dùng same-origin proxy để tránh lỗi CORS từ browser
   // Xóa bất kỳ override nào trong localStorage
   const storedUrl = localStorage.getItem(STORAGE_KEY_URL);
-  if (storedUrl && storedUrl !== 'https://database.kzii.site') {
-    console.warn('[API] Removing custom URL from localStorage, forcing default: https://database.kzii.site');
+  if (storedUrl && storedUrl !== '/api-proxy') {
+    console.warn('[API] Removing custom URL from localStorage, forcing default: /api-proxy');
     localStorage.removeItem(STORAGE_KEY_URL);
   }
 
-  return 'https://database.kzii.site';
+  return '/api-proxy';
 };
 
 // Kiểm tra mixed content (HTTPS page với HTTP API)
@@ -133,7 +133,7 @@ export const saveApiConfig = async (url: string): Promise<boolean> => {
   // PRODUCTION: Không cho phép thay đổi API URL
   const isDev = window.location.hostname === 'localhost';
   if (!isDev) {
-    console.warn('[Config] API URL is locked in production: https://database.kzii.site');
+    console.warn('[Config] API URL is locked in production: /api-proxy');
     return false;
   }
 
