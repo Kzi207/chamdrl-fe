@@ -672,8 +672,12 @@ export const uploadProofImage = async (file: File, studentId: string, category: 
   });
 };
 
-export const deleteProofImage = async (studentId: string, category: string): Promise<void> => {
-  await fetchAPI(`delimg?tk_sv=${studentId}&muc_danh_gia=${category}`, 'GET');
+export const deleteProofImage = async (studentId: string, category: string, url?: string): Promise<void> => {
+  let endpoint = `delimg?tk_sv=${encodeURIComponent(studentId)}&muc_danh_gia=${encodeURIComponent(category)}`;
+  if (url) {
+    endpoint += `&url=${encodeURIComponent(url)}`;
+  }
+  await fetchAPI(endpoint, 'GET');
 }
 
 export const getProofImages = async (studentId: string, categories: string[] = []): Promise<Record<string, string[]>> => {

@@ -150,6 +150,9 @@ const AdminRedirect = React.lazy(() => import('./pages/AdminRedirect'));
 const StudentHome = React.lazy(() => import('./pages/StudentHome'));
 const StudentActivities = React.lazy(() => import('./pages/StudentActivities'));
 const AdminHome = React.lazy(() => import('./pages/AdminHome'));
+const AdminDRLApproval = React.lazy(() => import('./pages/AdminDRLApproval'));
+const AdminDRLDetail = React.lazy(() => import('./pages/AdminDRLDetail'));
+const AdminProofReview = React.lazy(() => import('./pages/AdminProofReview'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 
 // Lazy loading backup pages
@@ -584,6 +587,21 @@ const App: React.FC = () => {
                   <AdminSettings />
                 </AdminPrivateRoute>
               } />
+              <Route path="/admin/drl/approval" element={
+                <AdminPrivateRoute>
+                  <AdminDRLApproval />
+                </AdminPrivateRoute>
+              } />
+              <Route path="/admin/drl/approval/detail/:studentId" element={
+                <AdminPrivateRoute>
+                  <AdminDRLDetail />
+                </AdminPrivateRoute>
+              } />
+              <Route path="/admin/drl/proof" element={
+                <AdminPrivateRoute>
+                  <AdminProofReview />
+                </AdminPrivateRoute>
+              } />
               <Route path="/admin/backup" element={
                 <AdminPrivateRoute>
                   <BackupHome />
@@ -612,9 +630,12 @@ const App: React.FC = () => {
                 </PrivateRoute>
               }>
                 <Route path="/admin-home" element={<AdminHome />} />
+                <Route path="/drl/approval" element={<AdminDRLApproval />} />
+                <Route path="/drl/approval/detail/:studentId" element={<AdminDRLDetail />} />
                 {/* --- ROUTES HỆ THỐNG DRL --- */}
                 <Route path="/drl" element={<DRLManager />} />
                 <Route path="/drl/form/:studentId" element={<DRLForm />} />
+                <Route path="/drl/proof" element={<AdminProofReview />} />
                 <Route path="/drl/statistics" element={<DRLStatistics />} />
                 <Route path="/drl/classes" element={<ClassManagement />} />
                 <Route path="/drl/periods" element={<GradingPeriods />} />

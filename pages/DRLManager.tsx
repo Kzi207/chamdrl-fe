@@ -614,7 +614,7 @@ const DRLManager: React.FC = () => {
         const s = scores.find(sc => sc.studentId === studentId && sc.semester === selectedPeriodId);
         if (!s) return 'all';
         if (s.status === 'finalized') return 'approved';
-        if (s.status === 'rejected') return 'rejected';
+        if ((s.status as string) === 'rejected') return 'rejected';
         if (['submitted', 'class_approved', 'bch_approved'].includes(s.status || '')) return 'pending';
         return 'all';
     };
@@ -886,12 +886,18 @@ const DRLManager: React.FC = () => {
                                         </div>
                                         <div className="col-span-2">
                                             <p className="text-slate-500 text-[11px] mb-1">Minh chứng</p>
-                                            <p className="font-medium text-slate-700">{proofCount} ảnh</p>
+                                             <p className="font-medium text-slate-700">{(proofCount as number)} ảnh</p>
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={() => navigate(`/drl/form/${s.id}?period=${selectedPeriodId}`)}
+                                        onClick={() => {
+                                            if (currentUser?.role === 'student') {
+                                                navigate(`/drl/form/${s.id}?period=${selectedPeriodId}`);
+                                            } else {
+                                                navigate(`/drl/approval/detail/${s.id}?period=${selectedPeriodId}`);
+                                            }
+                                        }}
                                         className={`w-full font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${action.className}`}
                                         type="button"
                                     >
