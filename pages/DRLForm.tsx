@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,7 +28,8 @@ import {
   FileIcon,
   Paperclip,
   Loader,
-  Clock
+  Clock,
+  BookOpen
 } from 'lucide-react';
 import {
   getDRLScores,
@@ -41,6 +42,7 @@ import {
 } from '../services/storage';
 import { DRLScore, Student } from '../types';
 import StudentBottomNav from '../components/StudentBottomNav';
+import ScoringGuideModal from '../components/ScoringGuideModal';
 
 // --- Data Structures ---
 
@@ -49,8 +51,7 @@ interface Criterion {
   content: string;
   maxPoints: number;
   guide: string;
-  type: 'select' | 'number' | 'boolean';
-  options?: { label: string; points: number }[];
+  type: 'number' | 'boolean';
   unit?: string;
 }
 
@@ -61,209 +62,441 @@ interface Section {
   criteria: Criterion[];
 }
 
+interface RejectionBaselineItem {
+  score: number;
+  proofs: string[];
+}
+
 const EVALUATION_DATA: Section[] = [
   {
     id: 'sec-1',
-    title: 'I. Đánh giá về ý thức tham gia học tập',
+    title: 'I. Đánh giá về ý thức tham gia học tập (Điểm tối đa là 20 điểm)',
     maxPoints: 20,
     criteria: [
       {
         id: '1.1',
-        content: '1. Điểm trung bình học tập tích lũy (thang 4)',
+        content: '1. Sinh viên có điểm trung bình học tập tích lũy với thang điểm 4',
         maxPoints: 5,
-        guide: 'Tính điểm theo học kỳ tín chỉ. Loại Trung bình (2.0-2.49): 2đ; Khá (2.5-3.19): 3đ; Giỏi (3.2-3.59): 4đ; Xuất sắc (3.6-4.0): 5đ.',
-        type: 'select',
-        options: [
-          { label: 'Không đạt / Dưới 2.0', points: 0 },
-          { label: 'Trung bình (2.0 - 2.49)', points: 2 },
-          { label: 'Khá (2.5 - 3.19)', points: 3 },
-          { label: 'Giỏi (3.2 - 3.59)', points: 4 },
-          { label: 'Xuất sắc (3.6 - 4.0)', points: 5 }
-        ]
+        guide: 'Căn cứ vào điểm trung bình học kỳ (thang 4): \n- Loại Trung bình: 2.0 - 2.49 (2đ)\n- Loại Khá: 2.5 - 3.19 (3đ)\n- Loại Giỏi: 3.2 - 3.59 (4đ)\n- Loại Xuất sắc: 3.6 - 4.0 (5đ)',
+        type: 'number',
+        unit: 'điểm'
       },
       {
         id: '1.2',
-        content: '2. Chứng nhận tham gia các lớp kỹ năng học tập',
+        content: '2. Có giấy chứng nhận tham gia học các lớp chuyên đề kỹ năng học tập trong và ngoài Trường',
         maxPoints: 3,
-        guide: 'Sinh viên có minh chứng (giấy xác nhận, chứng nhận...). Cộng 3đ/học kỳ.',
+        guide: 'Có minh chứng (giấy xác nhận, giấy chứng nhận, giấy khen, bằng khen...). Cộng 3đ/học kỳ.',
         type: 'boolean'
       },
       {
         id: '1.3',
-        content: '3. Hội thảo, Tọa đàm cấp Khoa/Trường',
+        content: '3. Hội thảo hoặc Tọa đàm do Khoa hoặc Trường tổ chức',
         maxPoints: 3,
-        guide: 'Tham gia trực tiếp: 3đ/lần; Trực tuyến: 1đ/lần. Tối đa 3đ.',
+        guide: 'Có minh chứng. \n- Tham gia trực tiếp: 3đ/lần\n- Tham gia trực tuyến: 1đ/lần',
         type: 'number',
-        unit: 'lần'
+        unit: 'điểm'
       },
       {
         id: '1.4',
-        content: '4. Cuộc thi học thuật cấp Khoa/Trường',
+        content: '4. Các cuộc thi học thuật cấp Khoa hoặc Trường tổ chức trực tiếp hoặc trực tuyến',
         maxPoints: 7,
-        guide: 'Tham dự: 1đ; BTC: 2đ; Tham gia: 3đ; Giải KK: 4đ; Giải Nhì/Ba: 5đ; Giải Nhất: 6đ; Giải Đặc biệt: 7đ.',
-        type: 'select',
-        options: [
-          { label: 'Không tham gia', points: 0 },
-          { label: 'Tham dự/Cổ vũ (1đ)', points: 1 },
-          { label: 'Ban tổ chức (2đ)', points: 2 },
-          { label: 'Tham gia (3đ)', points: 3 },
-          { label: 'Giải Khuyến khích (4đ)', points: 4 },
-          { label: 'Giải Nhì/Ba (5đ)', points: 5 },
-          { label: 'Giải Nhất (6đ)', points: 6 },
-          { label: 'Giải Đặc biệt (7đ)', points: 7 }
-        ]
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 1đ/lần\n- Ban tổ chức: 2đ/lần\n- Tham gia: 3đ/lần\n- Đạt giải Khuyến khích, giải phụ: 4đ/lần\n- Đạt giải Nhì, Ba: 5đ/lần\n- Đạt giải Nhất: 6đ/lần\n- Đạt giải Đặc biệt: 7đ/lần',
+        type: 'number',
+        unit: 'điểm'
       },
       {
         id: '1.5',
-        content: '5. Cuộc thi học thuật đơn vị ngoài Trường',
+        content: '5. Các cuộc thi học thuật do các đơn vị bên ngoài trường tổ chức',
         maxPoints: 8,
-        guide: 'Tham dự: 2đ; BTC: 3đ; Tham gia: 4đ; Giải KK: 5đ; Giải Nhì/Ba: 6đ; Giải Nhất: 7đ; Giải Đặc biệt: 8đ.',
-        type: 'select',
-        options: [
-          { label: 'Không tham gia', points: 0 },
-          { label: 'Tham dự/Cổ vũ (2đ)', points: 2 },
-          { label: 'Ban tổ chức (3đ)', points: 3 },
-          { label: 'Tham gia (4đ)', points: 4 },
-          { label: 'Giải Khuyến khích (5đ)', points: 5 },
-          { label: 'Giải Nhì/Ba (6đ)', points: 6 },
-          { label: 'Giải Nhất (7đ)', points: 7 },
-          { label: 'Giải Đặc biệt (8đ)', points: 8 }
-        ]
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 2đ/lần\n- Ban tổ chức: 3đ/lần\n- Tham gia: 4đ/lần\n- Đạt giải Khuyến khích, giải phụ: 5đ/lần\n- Đạt giải Nhì, Ba: 6đ/lần\n- Đạt giải Nhất: 7đ/lần\n- Đạt giải Đặc biệt: 8đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.6',
+        content: '6. Báo cáo khoa học cấp Khoa',
+        maxPoints: 8,
+        guide: 'Có minh chứng. \n- Đề tài đạt loại Trung bình: 3đ/lần\n- Đề tài đạt loại Khá: 4đ/lần\n- Đề tài đạt loại Tốt: 6đ/lần\n- Đề tài đạt loại Xuất sắc: 8đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.7',
+        content: '7. Tham gia đề tài NCKH Trường (không tính bài tập, tiểu luận, đồ án...)',
+        maxPoints: 10,
+        guide: 'Có minh chứng. \n- Đề tài đạt loại Trung bình: 5đ/lần\n- Đề tài đạt loại Khá: 6đ/lần\n- Đề tài đạt loại Tốt: 8đ/lần\n- Đề tài đạt loại Xuất sắc: 10đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.8',
+        content: '8. Viết bài báo khoa học trong và ngoài Trường',
+        maxPoints: 8,
+        guide: 'Có minh chứng. \n- Được đăng trên kỷ yếu, bản tin: 5đ/lần\n- Được đăng trên tạp chí khoa học: 8đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.9',
+        content: '9. Các cuộc thi khởi nghiệp do Trường tổ chức',
+        maxPoints: 7,
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 1đ/lần\n- Ban tổ chức: 2đ/lần\n- Tham gia: 3đ/lần\n- Đạt giải Khuyến khích, giải phụ: 4đ/lần\n- Đạt giải Nhì, Ba: 5đ/lần\n- Đạt giải Nhất: 6đ/lần\n- Đạt giải Đặc biệt: 7đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.10',
+        content: '10. Các cuộc thi khởi nghiệp do đơn vị ngoài Trường tổ chức',
+        maxPoints: 8,
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 2đ/lần\n- Ban tổ chức: 3đ/lần\n- Tham gia: 4đ/lần\n- Đạt giải Khuyến khích, giải phụ: 5đ/lần\n- Đạt giải Nhì, Ba: 6đ/lần\n- Đạt giải Nhất: 7đ/lần\n- Đạt giải Đặc biệt: 8đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '1.11',
+        content: '11. Thành viên các câu lạc bộ học thuật cấp Khoa, Trường',
+        maxPoints: 2,
+        guide: 'Có minh chứng. Cộng 2đ/học kỳ.',
+        type: 'boolean'
+      },
+      {
+        id: '1.12',
+        content: '12. Các hoạt động khác',
+        maxPoints: 3,
+        guide: 'Có minh chứng. \n- Tham gia trực tiếp: 3đ/lần\n- Tham gia trực tuyến: 1đ/lần',
+        type: 'number',
+        unit: 'điểm'
       }
     ]
   },
   {
     id: 'sec-2',
-    title: 'II. Đánh giá về ý thức chấp hành nội quy, quy chế',
+    title: 'II. Đánh giá về ý thức chấp hành nội quy, quy chế và các quy định của Nhà trường (Điểm tối đa là 25 điểm)',
     maxPoints: 25,
     criteria: [
       {
         id: '2.1',
-        content: '1. Ý thức, thái độ trong học tập',
+        content: '1. Sinh viên có ý thức, thái độ trong học tập',
         maxPoints: 5,
-        guide: 'Đi học đầy đủ, đúng giờ, nghiêm túc. Vi phạm: Nghỉ không phép (-3đ); Đi muộn 3 lần (-1đ); Bỏ tiết 3 lần (-1đ); Bị cấm thi (-5đ).',
+        guide: 'Đi học đầy đủ, đúng giờ, nghiêm túc trong giờ học. \n- Mỗi buổi nghỉ không phép: -3đ\n- Đi muộn (3 lần): -1đ\n- Bỏ tiết (3 lần): -1đ\n- Bị cấm thi: -5đ',
         type: 'number',
-        unit: 'điểm trừ (nhập số âm)'
+        unit: 'điểm'
       },
       {
         id: '2.2',
-        content: '2. Chấp hành nội quy, quy chế Nhà trường',
+        content: '2. Sinh viên có ý thức chấp hành tốt, đầy đủ các nội quy, quy chế và các quy định của Nhà trường',
         maxPoints: 5,
-        guide: 'Mặc định 5đ. Trừ điểm khi có quyết định kỷ luật.',
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
         type: 'number',
-        unit: 'điểm trừ'
+        unit: 'điểm'
       },
       {
         id: '2.3',
-        content: '3. Thực hiện quy chế thi, cuộc thi',
+        content: '3. Sinh viên thực hiện tốt quy chế khi tham gia các kỳ thi, cuộc thi',
         maxPoints: 5,
-        guide: 'Mặc định 5đ. Trừ điểm khi vi phạm quy chế thi.',
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
         type: 'number',
-        unit: 'điểm trừ'
+        unit: 'điểm'
       },
       {
         id: '2.4',
-        content: '4. Chấp hành quy định thư viện, phòng máy...',
+        content: '4. Chấp hành quy định của thư viện',
         maxPoints: 5,
-        guide: 'Mặc định 5đ. Trừ điểm khi vi phạm quy định.',
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
         type: 'number',
-        unit: 'điểm trừ'
+        unit: 'điểm'
       },
       {
         id: '2.5',
-        content: '5. Sinh hoạt lớp với CVHT, đồng phục, ngoại trú',
+        content: '5. Chấp hành quy định của phòng học, phòng máy, phòng thực hành',
         maxPoints: 5,
-        guide: 'Mặc định 5đ. Trừ điểm khi không tham gia sinh hoạt lớp không lý do, mặc sai quy định...',
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
         type: 'number',
-        unit: 'điểm trừ'
+        unit: 'điểm'
+      },
+      {
+        id: '2.6',
+        content: '6. Thực hiện đăng ký ngoại trú',
+        maxPoints: 5,
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '2.7',
+        content: '7. Mặc đồng phục đúng quy định',
+        maxPoints: 5,
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi có quyết định kỷ luật.',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '2.8',
+        content: '8. Sinh hoạt lớp với CVHT',
+        maxPoints: 5,
+        guide: 'Điểm cộng: 5đ. Điểm trừ: -5đ khi không sinh hoạt lớp không lý do.',
+        type: 'number',
+        unit: 'điểm'
       }
     ]
   },
   {
     id: 'sec-3',
-    title: 'III. Đánh giá về ý thức tham gia hoạt động CT-XH, VH-VN, TD-TT',
+    title: 'III. Đánh giá về ý thức tham gia các hoạt động chính trị, xã hội, văn hóa, văn nghệ, thể thao... (Điểm tối đa là 20 điểm)',
     maxPoints: 20,
     criteria: [
       {
         id: '3.1',
-        content: '1. Hoạt động bắt buộc do Khoa/Trường tổ chức',
+        content: '1. Hoạt động bắt buộc do Khoa hoặc Trường tổ chức',
         maxPoints: 3,
-        guide: 'Tham gia: 3đ/lần. Không tham gia: -3đ/lần.',
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Vắng không lý do: -3đ/lần',
         type: 'number',
-        unit: 'lần'
+        unit: 'điểm'
       },
       {
         id: '3.2',
-        content: '2. Đại hội, sinh hoạt Chi đoàn/Chi hội',
+        content: '2. Đại hội Chi Đoàn/Chi Hội; sinh hoạt Chi Đoàn/Chi Hội',
         maxPoints: 3,
-        guide: 'Tham gia: 3đ/lần. Không tham gia: -3đ/lần.',
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Vắng không lý do: -3đ/lần',
         type: 'number',
-        unit: 'lần'
+        unit: 'điểm'
       },
       {
         id: '3.3',
-        content: '3. Báo cáo chuyên đề trực tiếp/trực tuyến',
+        content: '3. Báo cáo chuyên đề do Trường tổ chức trực tiếp hoặc trực tuyến',
         maxPoints: 4,
-        guide: 'Cộng 4đ/lần tham gia.',
-        type: 'number',
-        unit: 'lần'
+        guide: 'Có minh chứng. Cộng 4đ/lần.',
+        type: 'boolean'
       },
       {
         id: '3.4',
-        content: '4. Hoạt động ngoại khóa, CLB, Đội nhóm',
+        content: '4. Hoạt động ngoại khóa hoặc các cuộc thi do các CLB, Khoa, Trường hoặc đơn vị ngoài Trường tổ chức trực tiếp hoặc trực tuyến',
         maxPoints: 7,
-        guide: 'Tham gia tích cực các hoạt động phong trào. Tối đa 7đ.',
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 1đ/lần\n- Ban tổ chức: 2đ/lần\n- Tham gia: 3đ/lần\n- Giải Khuyến khích/Phụ: 4đ/lần\n- Giải Nhì/Ba: 5đ/lần\n- Giải Nhất: 6đ/lần\n- Giải Đặc biệt: 7đ/lần',
         type: 'number',
         unit: 'điểm'
       },
       {
         id: '3.5',
-        content: '5. Kết nạp Đoàn (5đ) / Đảng (8đ)',
+        content: '5. Hoạt động ngoại khóa hoặc các cuộc thi từ cấp Thành phố trở lên',
         maxPoints: 8,
-        guide: 'Được kết nạp Đoàn: 5đ; Kết nạp Đảng: 8đ. Chỉ tính 1 lần trong học kỳ kết nạp.',
-        type: 'select',
-        options: [
-          { label: 'Không', points: 0 },
-          { label: 'Kết nạp Đoàn', points: 5 },
-          { label: 'Kết nạp Đảng', points: 8 }
-        ]
+        guide: 'Có minh chứng. \n- Tham dự/Cổ vũ: 1đ/lần\n- Ban tổ chức: 3đ/lần\n- Tham gia: 4đ/lần\n- Giải Khuyến khích/Phụ: 5đ/lần\n- Giải Nhì/Ba: 6đ/lần\n- Giải Nhất: 7đ/lần\n- Giải Đặc biệt: 8đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '3.6',
+        content: '6. Được kết nạp Đoàn',
+        maxPoints: 5,
+        guide: 'Chỉ được cộng một lần vào học kỳ kết nạp. Cộng 5đ.',
+        type: 'boolean'
+      },
+      {
+        id: '3.7',
+        content: '7. Được kết nạp Đảng',
+        maxPoints: 8,
+        guide: 'Chỉ được cộng một lần vào học kỳ kết nạp. Cộng 8đ.',
+        type: 'boolean'
+      },
+      {
+        id: '3.8',
+        content: '8. Các hoạt động, phong trào do các đơn vị, Đoàn, Hội điều động',
+        maxPoints: 4,
+        guide: 'Có minh chứng. \n- Tham gia: 2đ/lần\n- Ban tổ chức: 4đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '3.9',
+        content: '9. Thành viên các Câu lạc bộ, đội, nhóm thuộc Đoàn Thanh niên, Hội Sinh viên',
+        maxPoints: 2,
+        guide: 'Có minh chứng. Cộng 2đ/học kỳ.',
+        type: 'boolean'
+      },
+      {
+        id: '3.10',
+        content: '10. Hoạt động "Học tập các bài lý luận chính trị"',
+        maxPoints: 4,
+        guide: 'Có minh chứng. Cộng 4đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '3.11',
+        content: '11. Hoạt động đền ơn đáp nghĩa, Thắp nến tri ân',
+        maxPoints: 3,
+        guide: 'Có minh chứng. Cộng 3đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '3.12',
+        content: '12. Hoạt động lao động tình nguyện tại Trường',
+        maxPoints: 3,
+        guide: 'Có minh chứng. Cộng 3đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '3.13',
+        content: '13. Được khen thưởng trong các hoạt động phong trào',
+        maxPoints: 7,
+        guide: 'Có minh chứng. \n- Giấy khen hoặc tương đương: 5đ/lần\n- Bằng khen hoặc tương đương: 7đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '3.14',
+        content: '14. Tập thể được khen thưởng trong các hoạt động phong trào',
+        maxPoints: 1,
+        guide: 'Mỗi SV trong tập thể được 1 điểm khi có giấy khen tập thể. Cộng 1đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '3.15',
+        content: '15. Các hoạt động khác',
+        maxPoints: 3,
+        guide: 'Có minh chứng. \n- Tham gia trực tiếp: 3đ/lần\n- Tham gia trực tuyến: 1đ/lần',
+        type: 'number',
+        unit: 'điểm'
       }
     ]
   },
   {
     id: 'sec-4',
-    title: 'IV. Đánh giá về ý thức công dân trong quan hệ cộng đồng',
+    title: 'IV. Đánh giá về ý thức công dân trong quan hệ cộng đồng (Điểm tối đa là 25 điểm)',
     maxPoints: 25,
     criteria: [
       {
         id: '4.1',
-        content: '1. Chấp hành luật pháp, quy định Nhà nước',
+        content: '1. Sinh viên chấp hành luật pháp, các quy định của Nhà nước và không có thông báo do công an hoặc các đơn vị khác gửi về Trường',
         maxPoints: 10,
-        guide: 'Mặc định 10đ. Vi phạm bị công an thông báo về trường: -5đ/lần.',
-        type: 'number',
-        unit: 'điểm (mặc định 10)'
-      },
-      {
-        id: '4.2',
-        content: '2. Hiến máu tình nguyện',
-        maxPoints: 10,
-        guide: 'Tham gia hiến máu: 10đ/lần. Ban tổ chức: 5đ/lần.',
-        type: 'number',
-        unit: 'lần'
-      },
-      {
-        id: '4.3',
-        content: '3. Chiến dịch tình nguyện (Mùa hè xanh, Xuân tình nguyện...)',
-        maxPoints: 7,
-        guide: 'Mùa hè xanh: 7đ; Xuân tình nguyện: 5đ; Ngày Chủ nhật xanh: 3đ; Thứ Bảy tình nguyện: 3đ.',
+        guide: 'Điểm cộng: 10đ/lần. Điểm trừ: -5đ/lần khi có hành vi chưa tốt có văn bản thông báo.',
         type: 'number',
         unit: 'điểm'
       },
       {
-        id: '4.4',
-        content: '4. Hoạt động đền ơn đáp nghĩa, nhân đạo',
+        id: '4.2',
+        content: '2. Sinh viên có hành vi tốt, có tinh thần sẻ chia, giúp đỡ người yếu thế được ghi nhận bằng văn bản',
         maxPoints: 5,
-        guide: 'Tham gia các hoạt động từ thiện, giúp đỡ người yếu thế... Tối đa 5đ.',
+        guide: 'Có minh chứng (giấy khen, giấy chứng nhận...). Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.3',
+        content: '3. Sinh viên được biểu dương, khen thưởng về tham gia các hoạt động xã hội và cộng đồng ngoài trường',
+        maxPoints: 5,
+        guide: 'Có minh chứng bằng văn bản. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.4',
+        content: '4. Giao lưu chương trình "Giao lưu các câu lạc bộ, đội, nhóm trực thuộc"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.5',
+        content: '5. Chương trình "Tư vấn tuyển sinh"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.6',
+        content: '6. Công tác nhập học',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.7',
+        content: '7. Công tác khám sức khỏe sinh viên đầu khóa',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.8',
+        content: '8. Công tác Ngày hội việc làm',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.9',
+        content: '9. Công tác tổ chức Lễ Tốt nghiệp',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.10',
+        content: '10. Công tác kiểm tra hồ sơ sinh viên',
+        maxPoints: 5,
+        guide: 'Có minh chứng. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '4.11',
+        content: '11. Tham gia các phiên giao dịch việc làm',
+        maxPoints: 3,
+        guide: 'Có minh chứng. \n- Tư vấn tại góc việc làm, cà phê việc làm: 1đ/lần\n- Cà phê việc làm tại TT DVVL: 2đ/lần\n- Phiên giao dịch việc làm khu vực: 3đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.12',
+        content: '12. Hiến máu tình nguyện',
+        maxPoints: 10,
+        guide: 'Có minh chứng. \n- Tham gia: 10đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.13',
+        content: '13. Chương trình "Xuân tình nguyện"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. \n- Tham gia: 4đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.14',
+        content: '14. Chiến dịch tình nguyện "Mùa hè xanh"',
+        maxPoints: 7,
+        guide: 'Có minh chứng. \n- Tham gia: 5đ/lần\n- Ban tổ chức: 7đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.15',
+        content: '15. Chương trình "Ngày Chủ nhật xanh"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.16',
+        content: '16. Chương trình "Thứ Bảy tình nguyện"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.17',
+        content: '17. Chương trình "Chào đón tân sinh viên"',
+        maxPoints: 5,
+        guide: 'Có minh chứng. \n- Tham gia: 3đ/lần\n- Ban tổ chức: 5đ/lần',
+        type: 'number',
+        unit: 'điểm'
+      },
+      {
+        id: '4.18',
+        content: '18. Tham gia các hoạt động thực hiện trách nhiệm xã hội và phát triển bền vững',
+        maxPoints: 3,
+        guide: 'Có minh chứng. \n- Tham gia trực tiếp: 3đ/lần\n- Tham gia trực tuyến: 1đ/lần',
         type: 'number',
         unit: 'điểm'
       }
@@ -271,36 +504,67 @@ const EVALUATION_DATA: Section[] = [
   },
   {
     id: 'sec-5',
-    title: 'V. Đánh giá về ý thức và kết quả công tác cán bộ lớp, Đoàn thể',
+    title: 'V. Đánh giá về ý thức và kết quả khi tham gia công tác cán bộ lớp, các đoàn thể... (Điểm tối đa là 10 điểm)',
     maxPoints: 10,
     criteria: [
       {
         id: '5.1',
-        content: '1. Tham gia tích cực phong trào Lớp, Đoàn, Hội',
+        content: '1. Tham gia tích cực vào phong trào của Lớp, Đoàn, Hội sinh viên và các công tác đoàn thể xã hội khác',
         maxPoints: 3,
-        guide: 'Cộng 3đ/học kỳ cho thành viên tích cực.',
-        type: 'boolean'
+        guide: 'Cộng 1đ/hoạt động. Được 3đ (điểm tối đa). Có xác nhận của Đoàn, Hội cấp trên hoặc xác nhận của CVHT.',
+        type: 'number',
+        unit: 'điểm'
       },
       {
         id: '5.2',
-        content: '2. Hoàn thành tốt nhiệm vụ Ban cán sự, BCH Đoàn/Hội',
+        content: '2. Phát huy vai trò và hoàn thành tốt nhiệm vụ người cán bộ Chi đoàn, Lớp, Câu lạc bộ, đội, nhóm',
         maxPoints: 5,
-        guide: 'Lớp trưởng, Bí thư... hoàn thành tốt: 5đ; Phó lớp, Phó bí thư...: 4đ; Ủy viên: 3đ.',
-        type: 'select',
-        options: [
-          { label: 'Không', points: 0 },
-          { label: 'Ủy viên (3đ)', points: 3 },
-          { label: 'Cấp phó (4đ)', points: 4 },
-          { label: 'Cấp trưởng (5đ)', points: 5 }
-        ]
+        guide: 'Có xác nhận của Đoàn, Hội cấp trên hoặc xác nhận của CVHT. \n- UVBCH Đoàn Trường; UVBCH Hội SV; Chủ nhiệm CLB; lớp trưởng: 5đ/học kỳ\n- Phó chủ nhiệm CLB; Đội trưởng; Đội phó các Đội, Nhóm thuộc Nhà trường: 4đ/học kỳ\n- UVBCH chi đoàn, UV Chi hội sinh viên cấp khoa hoặc là thành viên Đội tự quản, CLB: 3đ/học kỳ',
+        type: 'number',
+        unit: 'điểm'
       },
       {
         id: '5.3',
-        content: '3. Đạt giải thưởng, khen thưởng đặc biệt',
-        maxPoints: 10,
-        guide: 'Sinh viên 5 tốt, khen thưởng của UBND Tỉnh, Trung ương... Tối đa 10đ.',
+        content: '3. Sinh viên đạt giải về học tập, NCKH',
+        maxPoints: 7,
+        guide: 'Có minh chứng. \n- Cấp Thành phố, Khu vực: Khuyến khích (3đ), Ba (4đ), Nhì (5đ), Nhất (6đ)\n- Cấp Toàn quốc: Khuyến khích (4đ), Ba (5đ), Nhì (6đ), Nhất (7đ)',
         type: 'number',
         unit: 'điểm'
+      },
+      {
+        id: '5.4',
+        content: '4. Sinh viên được tặng Bằng khen của UBND Tỉnh, Thành phố (hoặc tương đương) về các hoạt động chính trị, văn hóa - xã hội...',
+        maxPoints: 5,
+        guide: 'Có văn bản xác nhận. Cộng 5đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '5.5',
+        content: '5. Sinh viên đạt danh hiệu sinh viên 5 tốt cấp Trường, Đoàn viên tiêu biểu, Thanh niên tiên tiến làm theo lời Bác...',
+        maxPoints: 6,
+        guide: 'Có minh chứng. Cộng 6đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '5.6',
+        content: '6. Sinh viên đạt danh hiệu sinh viên 5 tốt cấp Thành, Trung ương, giải thưởng Sao tháng giêng',
+        maxPoints: 10,
+        guide: 'Có minh chứng. Cộng 10đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '5.7',
+        content: '7. Đạt danh hiệu Đoàn viên ưu tú',
+        maxPoints: 6,
+        guide: 'Cộng 6đ/lần.',
+        type: 'boolean'
+      },
+      {
+        id: '5.8',
+        content: '8. Giấy khen tập thể của Đoàn được trao cho những tập thể có thành tích xuất sắc',
+        maxPoints: 2,
+        guide: 'Mỗi SV trong tập thể được 2 điểm. Cộng 2đ/SV.',
+        type: 'boolean'
       }
     ]
   }
@@ -317,6 +581,8 @@ interface CriterionRowProps {
   onDeleteProof: (criterionId: string, url: string) => Promise<void>;
   uploading: boolean;
   onPreviewProofs: (urls: string[], index: number, title: string) => void;
+  validationStatus?: 'invalid' | 'edited' | null;
+  validationMessage?: string;
 }
 
 const CriterionRow = React.memo(
@@ -328,9 +594,12 @@ const CriterionRow = React.memo(
     onUploadProof,
     onDeleteProof,
     uploading,
-    onPreviewProofs
+    onPreviewProofs,
+    validationStatus = null,
+    validationMessage
   }: CriterionRowProps) => {
     const [showGuide, setShowGuide] = useState(false);
+    const [limitWarning, setLimitWarning] = useState<string | null>(null);
 
     const handleFileChange = useCallback(
       async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -344,7 +613,11 @@ const CriterionRow = React.memo(
     );
 
     return (
-      <div className="border-b border-slate-100 last:border-0 py-4">
+      <div
+        className={`border-b border-slate-100 last:border-0 py-4 ${
+          validationStatus === 'invalid' ? 'bg-red-50/40' : validationStatus === 'edited' ? 'bg-amber-50/40' : ''
+        }`}
+      >
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="flex-1">
             <div
@@ -362,6 +635,16 @@ const CriterionRow = React.memo(
               />
             </div>
 
+            {validationStatus && validationMessage && (
+              <p
+                className={`mt-2 text-[11px] font-semibold ${
+                  validationStatus === 'invalid' ? 'text-red-600' : 'text-amber-700'
+                }`}
+              >
+                {validationMessage}
+              </p>
+            )}
+
             {showGuide && (
               <div className="mt-3 space-y-3 animate-in">
                 <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border-l-4 border-blue-400 italic shadow-sm">
@@ -370,33 +653,6 @@ const CriterionRow = React.memo(
                     <span>{criterion.guide}</span>
                   </div>
                 </div>
-
-                {criterion.options && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {criterion.options.map((opt) => (
-                      <button
-                        key={`${criterion.id}-${opt.points}`}
-                        onClick={() => onChange(opt.points)}
-                        className={`text-left text-[11px] p-2.5 rounded-xl border transition-all flex justify-between items-center ${
-                          value === opt.points
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 ring-1 ring-emerald-100'
-                            : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:bg-blue-50'
-                        }`}
-                      >
-                        <span className="pr-2">{opt.label}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex-shrink-0 ${
-                            value === opt.points
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 text-slate-400'
-                          }`}
-                        >
-                          {opt.points}đ
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
 
                 <div className="mt-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                   <div className="flex items-center justify-between mb-3">
@@ -461,30 +717,44 @@ const CriterionRow = React.memo(
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto md:min-w-[150px] justify-end">
-            {criterion.type === 'select' && (
-              <select
-                value={value}
-                onChange={(e) => onChange(Number(e.target.value))}
-                className="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-emerald-500 outline-none w-full md:w-auto cursor-pointer"
-              >
-                <option value={0}>Chọn...</option>
-                {criterion.options?.map((opt) => (
-                  <option key={`${criterion.id}-${opt.points}`} value={opt.points}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            )}
-
             {criterion.type === 'number' && (
-              <div className="flex items-center gap-2 w-full md:w-auto">
-                <input
-                  type="number"
-                  value={value}
-                  onChange={(e) => onChange(Number(e.target.value))}
-                  className="text-sm border border-slate-200 rounded-lg px-2 py-1 w-20 focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-                <span className="text-xs text-slate-400 whitespace-nowrap">{criterion.unit}</span>
+              <div className="flex flex-col items-end gap-1 w-full md:w-auto">
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <input
+                    type="number"
+                    min={0}
+                    max={criterion.maxPoints}
+                    value={value}
+                    onChange={(e) => {
+                      const parsedValue = Number(e.target.value);
+                      if (Number.isNaN(parsedValue)) {
+                        onChange(0);
+                        setLimitWarning(null);
+                        return;
+                      }
+
+                      if (parsedValue > criterion.maxPoints) {
+                        onChange(criterion.maxPoints);
+                        setLimitWarning(`Đã quá điểm tối đa (${criterion.maxPoints} điểm)`);
+                        return;
+                      }
+
+                      if (parsedValue < 0) {
+                        onChange(0);
+                        setLimitWarning(null);
+                        return;
+                      }
+
+                      onChange(parsedValue);
+                      setLimitWarning(null);
+                    }}
+                    className="text-sm border border-slate-200 rounded-lg px-2 py-1 w-20 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                  <span className="text-xs text-slate-400 whitespace-nowrap">{criterion.unit || 'điểm'}</span>
+                </div>
+                {limitWarning && (
+                  <span className="text-[10px] font-semibold text-red-500">{limitWarning}</span>
+                )}
               </div>
             )}
 
@@ -523,6 +793,15 @@ const SECTION_ICONS: Record<string, React.ComponentType<any>> = {
   'sec-5': Award
 };
 
+const normalizeProofList = (proofs: string[] = []) => [...proofs].sort();
+
+const areProofListsEqual = (a: string[] = [], b: string[] = []) => {
+  const left = normalizeProofList(a);
+  const right = normalizeProofList(b);
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+};
+
 export default function DRLForm() {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -531,6 +810,9 @@ export default function DRLForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const [rejectedCriteriaIds, setRejectedCriteriaIds] = useState<string[]>([]);
+  const [rejectionBaseline, setRejectionBaseline] = useState<Record<string, RejectionBaselineItem>>({});
 
   const [userInfo, setUserInfo] = useState({
     name: '',
@@ -551,6 +833,7 @@ export default function DRLForm() {
   }>({ open: false, urls: [], index: 0, title: '' });
   const [activeSection, setActiveSection] = useState<string | null>('sec-1');
   const [drlScoreRecord, setDrlScoreRecord] = useState<DRLScore | null>(null);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -603,12 +886,40 @@ export default function DRLForm() {
             const parsedScores = existingScore.details;
             setScores(parsedScores);
           }
+
+          if (existingScore.status === 'rejected') {
+            const rejectedCriteria =
+              existingScore.details?.approvalNotes?.rejectedCriteria &&
+              Array.isArray(existingScore.details.approvalNotes.rejectedCriteria)
+                ? (existingScore.details.approvalNotes.rejectedCriteria as string[])
+                : [];
+            const loadedBaseline =
+              existingScore.details?.approvalNotes?.rejectionBaseline &&
+              typeof existingScore.details.approvalNotes.rejectionBaseline === 'object'
+                ? (existingScore.details.approvalNotes.rejectionBaseline as Record<string, RejectionBaselineItem>)
+                : {};
+
+            setRejectedCriteriaIds(rejectedCriteria);
+            setRejectionBaseline(loadedBaseline);
+
+            const rejectedLabel = rejectedCriteria.length
+              ? `Mục không duyệt: ${rejectedCriteria.join(', ')}.`
+              : 'Phiếu có mục không duyệt.';
+
+            setReviewNotice(
+              `${rejectedLabel} Điểm các mục không duyệt đã được đưa về 0. Vui lòng chỉnh sửa và nộp lại phiếu.`
+            );
+          } else {
+            setRejectedCriteriaIds([]);
+            setRejectionBaseline({});
+            setReviewNotice(null);
+          }
         } else {
           // Initialize default scores
           const initialScores: Record<string, number> = {};
           EVALUATION_DATA.forEach((sec) => {
             sec.criteria.forEach((crit) => {
-              if (['2.1', '2.2', '2.3', '2.4', '2.5'].includes(crit.id)) {
+              if (['2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'].includes(crit.id)) {
                 initialScores[crit.id] = 5;
               } else if (crit.id === '4.1') {
                 initialScores[crit.id] = 10;
@@ -751,6 +1062,24 @@ export default function DRLForm() {
     return Object.values(sectionTotals).reduce((a, b) => a + b, 0);
   }, [sectionTotals]);
 
+  const editedRejectedCriteriaMap = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    rejectedCriteriaIds.forEach((criterionId) => {
+      const baseline = rejectionBaseline[criterionId];
+      if (!baseline) {
+        result[criterionId] = false;
+        return;
+      }
+
+      const currentScore = scores[criterionId] || 0;
+      const currentProofs = existingProofs[criterionId] || [];
+      const scoreChanged = currentScore !== baseline.score;
+      const proofsChanged = !areProofListsEqual(currentProofs, baseline.proofs || []);
+      result[criterionId] = scoreChanged || proofsChanged;
+    });
+    return result;
+  }, [rejectedCriteriaIds, rejectionBaseline, scores, existingProofs]);
+
   // Save form to backend
   const handleSaveForm = useCallback(async () => {
     if (!studentId) {
@@ -764,6 +1093,13 @@ export default function DRLForm() {
       setSuccessMsg(null);
 
       // Create DRL score record
+      const editedRejectedCriteria = Object.entries(editedRejectedCriteriaMap)
+        .filter(([, edited]) => edited)
+        .map(([criterionId]) => criterionId);
+      const invalidRejectedCriteria = rejectedCriteriaIds.filter(
+        (criterionId) => !editedRejectedCriteriaMap[criterionId]
+      );
+
       const newScore: DRLScore = {
         id: drlScoreRecord?.id || `${studentId}-${Date.now()}`,
         studentId,
@@ -772,8 +1108,14 @@ export default function DRLForm() {
         classScore: 0,
         finalScore: 0,
         details: {
+          ...(drlScoreRecord?.details || {}),
           ...scores,
-          proofs: existingProofs
+          proofs: existingProofs,
+          studentRevision: {
+            editedRejectedCriteria,
+            invalidRejectedCriteria,
+            updatedAt: new Date().toISOString()
+          }
         },
         status: 'submitted'
       };
@@ -793,7 +1135,16 @@ export default function DRLForm() {
     } finally {
       setSaving(false);
     }
-  }, [studentId, scores, totalScore, userInfo.semester, drlScoreRecord, existingProofs]);
+  }, [
+    studentId,
+    scores,
+    totalScore,
+    userInfo.semester,
+    drlScoreRecord,
+    existingProofs,
+    editedRejectedCriteriaMap,
+    rejectedCriteriaIds
+  ]);
 
   const getRank = useCallback((score: number) => {
     if (score >= 90) return { label: 'Xuất sắc', color: 'text-purple-600' };
@@ -884,6 +1235,20 @@ export default function DRLForm() {
         </div>
       )}
 
+      {reviewNotice && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center gap-3 print:hidden">
+          <AlertCircle size={20} className="text-amber-600 flex-shrink-0" />
+          <p className="text-amber-800 text-sm flex-1">{reviewNotice}</p>
+          <button
+            onClick={() => setReviewNotice(null)}
+            className="ml-auto text-amber-700 hover:text-amber-900"
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 print:hidden">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -900,6 +1265,14 @@ export default function DRLForm() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsGuideModalOpen(true)}
+              className="hidden lg:flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-black transition-all border border-blue-100 shadow-sm"
+              type="button"
+            >
+              <BookOpen size={16} />
+              HƯỚNG DẪN CHẤM
+            </button>
             <div className="hidden md:flex flex-col items-end">
               <span className="text-[10px] font-bold text-slate-400 uppercase">
                 Tổng điểm dự kiến
@@ -1069,6 +1442,20 @@ export default function DRLForm() {
                         onDeleteProof={handleDeleteProof}
                         uploading={!!uploadingByCriterion[crit.id]}
                         onPreviewProofs={openProofPreview}
+                        validationStatus={
+                          rejectedCriteriaIds.includes(crit.id)
+                            ? editedRejectedCriteriaMap[crit.id]
+                              ? 'edited'
+                              : 'invalid'
+                            : null
+                        }
+                        validationMessage={
+                          rejectedCriteriaIds.includes(crit.id)
+                            ? editedRejectedCriteriaMap[crit.id]
+                              ? 'Đã chỉnh sửa, chờ admin duyệt lại.'
+                              : 'Không hợp lệ: Mục này bị không duyệt. Vui lòng chỉnh sửa điểm hoặc minh chứng.'
+                            : undefined
+                        }
                       />
                     ))}
 
@@ -1322,6 +1709,12 @@ export default function DRLForm() {
           </div>
         </div>
       )}
+      {/* Scoring Guide Modal */}
+      <ScoringGuideModal 
+        isOpen={isGuideModalOpen} 
+        onClose={() => setIsGuideModalOpen(false)} 
+      />
     </div>
   );
 }
+

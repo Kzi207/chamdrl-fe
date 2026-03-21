@@ -211,6 +211,7 @@ const EVALUATION_DATA: Section[] = [
 // Tổng số tiêu chí
 const ALL_CRITERIA = EVALUATION_DATA.flatMap(s => s.criteria);
 const TOTAL_CRITERIA = ALL_CRITERIA.length;
+type CriterionReviewStatus = 'approved' | 'rejected' | 'pending';
 
 const SECTION_ICONS: Record<string, React.ComponentType<any>> = {
   'sec-1': Star,
@@ -218,6 +219,15 @@ const SECTION_ICONS: Record<string, React.ComponentType<any>> = {
   'sec-3': Users,
   'sec-4': Heart,
   'sec-5': Award
+};
+
+const normalizeProofList = (proofs: string[] = []) => [...proofs].sort();
+
+const areProofListsEqual = (a: string[] = [], b: string[] = []) => {
+  const left = normalizeProofList(a);
+  const right = normalizeProofList(b);
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
 };
 
 const getRank = (score: number) => {
@@ -254,9 +264,11 @@ const AdminDRLDetail: React.FC = () => {
   const [drlScore, setDrlScore] = useState<DRLScore | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [proofs, setProofs] = useState<Record<string, string[]>>({});
+  const [rejectionBaseline, setRejectionBaseline] = useState<Record<string, { score: number; proofs: string[] }>>({});
+  const [editedRejectedByStudent, setEditedRejectedByStudent] = useState<string[]>([]);
 
-  // Track which CRITERIA admin has approved (per criterion id: '1.1', '2.3', etc.)
-  const [approvedCriteria, setApprovedCriteria] = useState<Record<string, boolean>>({});
+  // Track review status per criterion id: approved/rejected/pending
+  const [criterionReviewStatus, setCriterionReviewStatus] = useState<Record<string, CriterionReviewStatus>>({});
   const [activeSection, setActiveSection] = useState<string | null>('sec-1');
 
   // Proof preview
@@ -283,19 +295,42 @@ const AdminDRLDetail: React.FC = () => {
 
   const totalScore = useMemo(() => Object.values(sectionTotals).reduce((a, b) => a + b, 0), [sectionTotals]);
 
-  // Approved count at criteria level
-  const approvedCount = useMemo(() => Object.values(approvedCriteria).filter(Boolean).length, [approvedCriteria]);
+  // Review count at criteria level
+  const approvedCount = useMemo(
+    () => Object.values(criterionReviewStatus).filter((s) => s === 'approved').length,
+    [criterionReviewStatus]
+  );
+  const rejectedCount = useMemo(
+    () => Object.values(criterionReviewStatus).filter((s) => s === 'rejected').length,
+    [criterionReviewStatus]
+  );
+  const reviewedCount = useMemo(
+    () => Object.values(criterionReviewStatus).filter((s) => s !== 'pending').length,
+    [criterionReviewStatus]
+  );
   const allApproved = useMemo(() => approvedCount === TOTAL_CRITERIA, [approvedCount]);
+
+  const editedRejectedMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    Object.entries(rejectionBaseline).forEach(([criterionId, baseline]) => {
+      const currentScore = scores[criterionId] || 0;
+      const currentProofs = proofs[criterionId] || [];
+      const changedByDiff = currentScore !== baseline.score || !areProofListsEqual(currentProofs, baseline.proofs || []);
+      const changedByStudentFlag = editedRejectedByStudent.includes(criterionId);
+      map[criterionId] = changedByDiff || changedByStudentFlag;
+    });
+    return map;
+  }, [rejectionBaseline, scores, proofs, editedRejectedByStudent]);
 
   // Per-section approved counts
   const sectionApprovedCounts = useMemo(() => {
     const counts: Record<string, { approved: number; total: number }> = {};
     EVALUATION_DATA.forEach(sec => {
-      const approved = sec.criteria.filter(c => approvedCriteria[c.id]).length;
+      const approved = sec.criteria.filter(c => criterionReviewStatus[c.id] === 'approved').length;
       counts[sec.id] = { approved, total: sec.criteria.length };
     });
     return counts;
-  }, [approvedCriteria]);
+  }, [criterionReviewStatus]);
 
   // ---- Load Data ----
   useEffect(() => {
@@ -339,9 +374,34 @@ const AdminDRLDetail: React.FC = () => {
                 : {};
             setProofs(proofsFromDetails);
 
-            // Restore previously approved criteria if saved
-            if (foundScore.details.approvalNotes?.approvedCriteria) {
-              setApprovedCriteria(foundScore.details.approvalNotes.approvedCriteria as Record<string, boolean>);
+            // Restore previously reviewed criteria if saved
+            if (foundScore.details.approvalNotes?.criterionReviewStatus) {
+              setCriterionReviewStatus(
+                foundScore.details.approvalNotes.criterionReviewStatus as Record<string, CriterionReviewStatus>
+              );
+            } else if (foundScore.details.approvalNotes?.approvedCriteria) {
+              const approvedLegacy = foundScore.details.approvalNotes.approvedCriteria as Record<string, boolean>;
+              const restored: Record<string, CriterionReviewStatus> = {};
+              Object.entries(approvedLegacy).forEach(([criterionId, isApproved]) => {
+                restored[criterionId] = isApproved ? 'approved' : 'pending';
+              });
+              setCriterionReviewStatus(restored);
+            }
+
+            if (
+              foundScore.details.approvalNotes?.rejectionBaseline &&
+              typeof foundScore.details.approvalNotes.rejectionBaseline === 'object'
+            ) {
+              setRejectionBaseline(
+                foundScore.details.approvalNotes.rejectionBaseline as Record<string, { score: number; proofs: string[] }>
+              );
+            }
+
+            if (
+              foundScore.details.studentRevision?.editedRejectedCriteria &&
+              Array.isArray(foundScore.details.studentRevision.editedRejectedCriteria)
+            ) {
+              setEditedRejectedByStudent(foundScore.details.studentRevision.editedRejectedCriteria as string[]);
             }
           }
         }
@@ -369,39 +429,79 @@ const AdminDRLDetail: React.FC = () => {
   }, [studentId, period]);
 
   // ---- Actions ----
-  const toggleCriterionApproval = useCallback((criterionId: string) => {
-    setApprovedCriteria(prev => ({ ...prev, [criterionId]: !prev[criterionId] }));
+  const setCriterionStatus = useCallback((criterionId: string, status: CriterionReviewStatus) => {
+    setCriterionReviewStatus((prev) => {
+      const current = prev[criterionId] || 'pending';
+      // Clicking the same state again resets to pending
+      const nextStatus = current === status ? 'pending' : status;
+      return { ...prev, [criterionId]: nextStatus };
+    });
   }, []);
 
   // Approve all criteria in one section
   const approveSectionAll = useCallback((sectionId: string) => {
     const section = EVALUATION_DATA.find(s => s.id === sectionId);
     if (!section) return;
-    setApprovedCriteria(prev => {
+    setCriterionReviewStatus(prev => {
       const next = { ...prev };
-      section.criteria.forEach(c => { next[c.id] = true; });
+      section.criteria.forEach(c => {
+        if (prev[c.id] === 'rejected' && !editedRejectedMap[c.id]) {
+          next[c.id] = 'rejected';
+          return;
+        }
+        next[c.id] = 'approved';
+      });
       return next;
     });
-  }, []);
+  }, [editedRejectedMap]);
 
   // Approve ALL criteria across all sections
   const approveAll = useCallback(() => {
-    const all: Record<string, boolean> = {};
-    ALL_CRITERIA.forEach(c => { all[c.id] = true; });
-    setApprovedCriteria(all);
-  }, []);
+    setCriterionReviewStatus((prev) => {
+      const all: Record<string, CriterionReviewStatus> = {};
+      ALL_CRITERIA.forEach((c) => {
+        if (prev[c.id] === 'rejected' && !editedRejectedMap[c.id]) {
+          all[c.id] = 'rejected';
+        } else {
+          all[c.id] = 'approved';
+        }
+      });
+      return all;
+    });
+  }, [editedRejectedMap]);
 
   const handleSaveApproval = useCallback(async () => {
     if (!drlScore) { setError('Không có phiếu đánh giá để duyệt'); return; }
-    if (approvedCount === 0) { setError('Vui lòng tích duyệt ít nhất một tiêu chí trước khi lưu'); return; }
+    if (reviewedCount === 0) { setError('Vui lòng duyệt/không duyệt ít nhất một tiêu chí trước khi lưu'); return; }
 
     try {
       setSaving(true);
       setError(null);
       setSuccessMsg(null);
 
+      const rejectedCriteriaIds = Object.entries(criterionReviewStatus)
+        .filter(([, status]) => status === 'rejected')
+        .map(([criterionId]) => criterionId);
+
+      const updatedDetailScores: Record<string, number> = { ...scores };
+      rejectedCriteriaIds.forEach((criterionId) => {
+        updatedDetailScores[criterionId] = 0;
+      });
+
+      const updatedSectionTotals: Record<string, number> = {};
+      EVALUATION_DATA.forEach((sec) => {
+        let sum = 0;
+        sec.criteria.forEach((crit) => {
+          sum += updatedDetailScores[crit.id] || 0;
+        });
+        updatedSectionTotals[sec.id] = Math.max(0, Math.min(sum, sec.maxPoints));
+      });
+      const updatedTotalScore = Object.values(updatedSectionTotals).reduce((acc, val) => acc + val, 0);
+
       let nextStatus = drlScore.status;
-      if (allApproved) {
+      if (rejectedCount > 0) {
+        nextStatus = 'rejected';
+      } else if (allApproved) {
         if (drlScore.status === 'submitted') nextStatus = 'class_approved';
         else if (drlScore.status === 'class_approved') nextStatus = 'bch_approved';
         else if (drlScore.status === 'bch_approved') nextStatus = 'faculty_approved';
@@ -412,12 +512,33 @@ const AdminDRLDetail: React.FC = () => {
       const updatedScore: DRLScore = {
         ...drlScore,
         status: nextStatus,
-        classScore: totalScore,
+        classScore: updatedTotalScore,
         details: {
           ...drlScore.details,
+          ...updatedDetailScores,
           approvalNotes: {
             ...(drlScore.details?.approvalNotes || {}),
-            approvedCriteria,
+            criterionReviewStatus,
+            approvedCriteria: Object.fromEntries(
+              Object.entries(criterionReviewStatus).map(([criterionId, status]) => [
+                criterionId,
+                status === 'approved'
+              ])
+            ),
+            rejectedCriteria: rejectedCriteriaIds,
+            rejectionBaseline: Object.fromEntries(
+              rejectedCriteriaIds.map((criterionId) => [
+                criterionId,
+                {
+                  score: updatedDetailScores[criterionId] || 0,
+                  proofs: normalizeProofList(proofs[criterionId] || [])
+                }
+              ])
+            ),
+            studentNotice:
+              rejectedCriteriaIds.length > 0
+                ? 'Có tiêu chí không duyệt và đã được đưa về 0 điểm. Vui lòng chỉnh sửa minh chứng/điểm và nộp lại phiếu.'
+                : '',
             approvedBy: 'admin',
             approvedAt: new Date().toISOString()
           }
@@ -427,12 +548,13 @@ const AdminDRLDetail: React.FC = () => {
       await saveDRLScore(updatedScore);
 
       const nextLabel =
+        nextStatus === 'rejected' ? 'Không duyệt' :
         nextStatus === 'class_approved' ? 'Duyệt lớp' :
         nextStatus === 'bch_approved' ? 'Duyệt BCH' :
         nextStatus === 'faculty_approved' ? 'Duyệt Khoa' :
         nextStatus === 'approved' ? 'Phê duyệt hoàn tất' : 'Đã cập nhật';
 
-      setSuccessMsg(`✅ ${allApproved ? nextLabel : 'Lưu duyệt'} thành công! Phiếu đã được cập nhật.`);
+      setSuccessMsg(`✅ ${(allApproved || rejectedCount > 0) ? nextLabel : 'Lưu duyệt'} thành công! Phiếu đã được cập nhật.`);
       setDrlScore(updatedScore);
       setTimeout(() => navigate(-1), 1800);
     } catch (err) {
@@ -441,7 +563,7 @@ const AdminDRLDetail: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [drlScore, approvedCriteria, allApproved, approvedCount, totalScore, navigate]);
+  }, [drlScore, criterionReviewStatus, allApproved, reviewedCount, rejectedCount, scores, proofs, navigate]);
 
   const openProofPreview = useCallback((urls: string[], index: number, title: string) => {
     if (!urls.length) return;
@@ -472,6 +594,7 @@ const AdminDRLDetail: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'rejected': return { label: 'Không duyệt', color: 'bg-red-100 text-red-700 border-red-200' };
       case 'submitted': return { label: 'Chờ duyệt lớp', color: 'bg-orange-100 text-orange-700 border-orange-200' };
       case 'class_approved': return { label: 'Đã duyệt lớp', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' };
       case 'bch_approved': return { label: 'Đã duyệt BCH', color: 'bg-blue-100 text-blue-700 border-blue-200' };
@@ -593,8 +716,8 @@ const AdminDRLDetail: React.FC = () => {
 
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="hidden md:flex flex-col items-end mr-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Đã duyệt</span>
-                <span className="text-base font-black text-blue-600">{approvedCount}/{TOTAL_CRITERIA}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Đã xử lý</span>
+                <span className="text-base font-black text-blue-600">{reviewedCount}/{TOTAL_CRITERIA}</span>
               </div>
 
               <button onClick={approveAll} disabled={allApproved}
@@ -604,7 +727,7 @@ const AdminDRLDetail: React.FC = () => {
                 Duyệt tất cả
               </button>
 
-              <button onClick={handleSaveApproval} disabled={saving || approvedCount === 0}
+              <button onClick={handleSaveApproval} disabled={saving || reviewedCount === 0}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
                 type="button">
                 {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
@@ -655,10 +778,11 @@ const AdminDRLDetail: React.FC = () => {
               <div className="flex items-center gap-2">
                 <div className="w-36 h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                    style={{ width: `${(approvedCount / TOTAL_CRITERIA) * 100}%` }} />
+                    style={{ width: `${(reviewedCount / TOTAL_CRITERIA) * 100}%` }} />
                 </div>
-                <span className="text-xs font-bold text-slate-600">{approvedCount}/{TOTAL_CRITERIA}</span>
+                <span className="text-xs font-bold text-slate-600">{reviewedCount}/{TOTAL_CRITERIA}</span>
               </div>
+              <p className="text-[10px] text-slate-400 mt-1">Duyệt: {approvedCount} • Không duyệt: {rejectedCount}</p>
             </div>
           </div>
         </section>
@@ -740,24 +864,39 @@ const AdminDRLDetail: React.FC = () => {
                       {section.criteria.map(crit => {
                         const val = scores[crit.id] || 0;
                         const critProofs = proofs[crit.id] || [];
-                        const isApproved = approvedCriteria[crit.id] || false;
+                        const reviewStatus = criterionReviewStatus[crit.id] || 'pending';
+                        const isApproved = reviewStatus === 'approved';
+                        const isRejected = reviewStatus === 'rejected';
+                        const isEditedAfterReject = !!editedRejectedMap[crit.id];
+                        const isInvalidRejected = isRejected && !isEditedAfterReject;
                         const optionLabel = getOptionLabel(crit, val);
 
                         return (
-                          <div key={crit.id} className={`border-b border-slate-100 last:border-0 py-4 transition-colors ${isApproved ? 'bg-emerald-50/30' : ''}`}>
+                          <div key={crit.id} className={`border-b border-slate-100 last:border-0 py-4 transition-colors ${
+                            isApproved ? 'bg-emerald-50/30' : isRejected ? 'bg-red-50/40' : ''
+                          }`}>
                             <div className="flex flex-col md:flex-row md:items-start gap-3">
                               {/* Criterion info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start gap-2">
                                   {/* Tiêu chí ID badge */}
                                   <span className={`flex-shrink-0 mt-0.5 text-[10px] font-black px-1.5 py-0.5 rounded ${
-                                    isApproved ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                                    isApproved
+                                      ? 'bg-emerald-200 text-emerald-800'
+                                      : isRejected
+                                      ? 'bg-red-200 text-red-800'
+                                      : 'bg-slate-100 text-slate-500'
                                   }`}>
                                     {crit.id}
                                   </span>
                                   <h4 className="text-sm font-medium text-slate-800">{crit.content}</h4>
                                 </div>
                                 <p className="text-[10px] text-slate-400 mt-1 italic ml-8">{crit.guide}</p>
+                                {isRejected && (
+                                  <p className={`text-[10px] font-semibold mt-1 ml-8 ${isEditedAfterReject ? 'text-amber-700' : 'text-red-600'}`}>
+                                    {isEditedAfterReject ? 'Đã chỉnh sửa bởi sinh viên, có thể duyệt lại.' : 'Không hợp lệ: Sinh viên chưa chỉnh sửa mục này.'}
+                                  </p>
+                                )}
                               </div>
 
                               {/* Right side: value + approve button */}
@@ -778,20 +917,35 @@ const AdminDRLDetail: React.FC = () => {
                                   <div className="text-sm font-black text-emerald-600 text-right mt-0.5">{val}đ</div>
                                 </div>
 
-                                {/* ✓ Approve toggle button per criterion */}
-                                <button
-                                  onClick={() => toggleCriterionApproval(crit.id)}
-                                  className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
-                                    isApproved
-                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-200'
-                                      : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50'
-                                  }`}
-                                  type="button"
-                                  title={isApproved ? 'Bỏ duyệt tiêu chí này' : 'Duyệt tiêu chí này'}
-                                >
-                                  <Check size={13} />
-                                  {isApproved ? 'Đã duyệt' : 'Duyệt'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => setCriterionStatus(crit.id, 'approved')}
+                                    disabled={isInvalidRejected}
+                                    className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                      isApproved
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-200'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed'
+                                    }`}
+                                    type="button"
+                                    title={isApproved ? 'Bỏ duyệt tiêu chí này' : 'Duyệt tiêu chí này'}
+                                  >
+                                    <Check size={13} />
+                                    {isApproved ? 'Đã duyệt' : 'Duyệt'}
+                                  </button>
+                                  <button
+                                    onClick={() => setCriterionStatus(crit.id, 'rejected')}
+                                    className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                      isRejected
+                                        ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'
+                                    }`}
+                                    type="button"
+                                    title={isRejected ? 'Bỏ không duyệt tiêu chí này' : 'Không duyệt tiêu chí này'}
+                                  >
+                                    <X size={13} />
+                                    {isRejected ? 'Đã không duyệt' : 'Không duyệt'}
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
@@ -859,6 +1013,8 @@ const AdminDRLDetail: React.FC = () => {
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-400">Đã duyệt:</span>
                 <span className="font-bold text-emerald-400">{approvedCount}/{TOTAL_CRITERIA} tiêu chí</span>
+                <span className="text-slate-400">• Không duyệt:</span>
+                <span className="font-bold text-red-300">{rejectedCount}</span>
                 {allApproved && <span className="text-emerald-400">✓ Đầy đủ</span>}
               </div>
             </div>
@@ -874,7 +1030,7 @@ const AdminDRLDetail: React.FC = () => {
                   <CheckCircle2 size={16} />
                   {allApproved ? 'Đã duyệt tất cả' : 'Duyệt tất cả tiêu chí'}
                 </button>
-                <button onClick={handleSaveApproval} disabled={saving || approvedCount === 0}
+                <button onClick={handleSaveApproval} disabled={saving || reviewedCount === 0}
                   className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-white/10 disabled:text-white/40 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2"
                   type="button">
                   {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}

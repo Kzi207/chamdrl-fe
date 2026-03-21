@@ -85,7 +85,7 @@ export interface User {
 }
 
 // === DRL (Điểm rèn luyện) ===
-export type DRLStatus = 'draft' | 'submitted' | 'class_approved' | 'bch_approved' | 'faculty_approved' | 'approved' | 'finalized';
+export type DRLStatus = 'draft' | 'submitted' | 'class_approved' | 'bch_approved' | 'faculty_approved' | 'approved' | 'finalized' | 'rejected';
 
 export interface GradingPeriod {
   id: string;          // VD: HK1_2024

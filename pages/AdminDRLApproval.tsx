@@ -271,6 +271,20 @@ const AdminDRLApproval: React.FC = () => {
               approvalNotes: review.approvalNotes
             }
           });
+        } else if (hasRejections) {
+          scoresToUpdate.push({
+            ...originalScore,
+            status: 'rejected',
+            classScore: review.selfScore,
+            details: {
+              ...originalScore.details,
+              approvalNotes: {
+                ...review.approvalNotes,
+                rejectedBy: 'admin',
+                rejectedAt: new Date().toISOString()
+              }
+            }
+          });
         }
       });
 
@@ -279,7 +293,12 @@ const AdminDRLApproval: React.FC = () => {
         await saveDRLScore(score);
       }
 
-      setSuccessMsg(`Đã duyệt thành công ${scoresToUpdate.length} phiếu đánh giá`);
+      const approvedUpdatedCount = scoresToUpdate.filter((s) => s.status !== 'rejected').length;
+      const rejectedUpdatedCount = scoresToUpdate.filter((s) => s.status === 'rejected').length;
+
+      setSuccessMsg(
+        `Đã cập nhật ${scoresToUpdate.length} phiếu (Duyệt: ${approvedUpdatedCount}, Không duyệt: ${rejectedUpdatedCount})`
+      );
 
       // Reload data
       setTimeout(() => {
@@ -386,6 +405,7 @@ const AdminDRLApproval: React.FC = () => {
                 <option value="bch_approved">Đã duyệt BCH (BCH Approved)</option>
                 <option value="faculty_approved">Đã duyệt Khoa (Faculty Approved)</option>
                 <option value="approved">Được phê duyệt (Approved)</option>
+                <option value="rejected">Không duyệt (Rejected)</option>
               </select>
             </div>
 
