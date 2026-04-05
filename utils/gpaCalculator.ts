@@ -8,7 +8,8 @@ export const SCORE_SCALE = {
 
 // Thang điểm chữ và GPA 4.0
 export const GRADE_SCALE = [
-  { min: 8.5, char: 'A', gpa4: 4.0, text: 'Xuất sắc' },
+  { min: 9., char: 'A', gpa4: 4.0, text: 'Xuất sắc' },
+  { min: 8.5, char: 'A', gpa4: 3.8, text: 'Xuất sắc' },
   { min: 8.0, char: 'B+', gpa4: 3.5, text: 'Giỏi' },
   { min: 7.0, char: 'B', gpa4: 3.0, text: 'Khá' },
   { min: 6.5, char: 'C+', gpa4: 2.5, text: 'TB Khá' },
